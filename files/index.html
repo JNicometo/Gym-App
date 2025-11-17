@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FitTrack Pro - MVP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="app"></div>
+
+    <script>
+        const API_URL = 'http://localhost:3001/api';
+        
+        // Simple state management
+        let state = {
+            currentUser: null,
+            activeTab: 'dashboard',
+            exercises: [],
+            workouts: [],
+            activeWorkout: null,
+            latestMeasurement: null
+        };
+
+        // Initialize app
+        function init() {
+            // Check for saved user
+            const savedUser = localStorage.getItem('fittrack_user');
+            if (savedUser) {
+                state.currentUser = JSON.parse(savedUser);
+                loadUserData();
+            }
+            render();
+        }
+
+        // Load user data from API
+        async function loadUserData() {
+            if (!state.currentUser) return;
+            
+            try {
+                const dbName = state.currentUser.databaseName;
+                
+                // Load exercises
+                const exercisesRes = await fetch(`${API_URL}/${dbName}/exercises`);
+                state.exercises = await exercisesRes.json();
+                
+                // Load workouts
+                const workoutsRes = await fetch(`${API_URL}/${dbName}/workouts?limit=10`);
+                state.workouts = await workoutsRes.json();
+                
+                // Load latest measurement
+                const measRes = await fetch(`${API_URL}/${dbName}/measurements/latest`);
+                state.latestMeasurement = await measRes.json();
+                
+                render();
+            } catch (error) {
+                console.error('Error loading user data:', error);
+            }
+        }
+
+        // Handle registration
+        async function handleRegistration(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = {
+                firstName: formData.get('firstName'),
+                lastName: formData.get('lastName'),
+                email: formData.get('email'),
+                password: formData.get('password')
+            };
+            
+            try {
+                const response = await fetch(`${API_URL}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    state.currentUser = result.user;
+                    localStorage.setItem('fittrack_user', JSON.stringify(result.user));
+                    alert('Registration successful! Your personal database has been created.');
+                    await loadUserData();
+                } else {
+                    alert('Registration failed: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Registration error:', error);
+                alert('Failed to register. Please check your connection and ensure the API is running.');
+            }
+        }
+
+        // Start workout
+        async function startWorkout() {
+            const name = document.getElementById('workout-name').value || 'Untitled Workout';
+            const notes = document.getElementById('workout-notes').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/${state.currentUser.databaseName}/workouts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ workout_name: name, notes })
+                });
+                
+                const newWorkout = await response.json();
+                state.activeWorkout = newWorkout;
+                state.workouts = [newWorkout, ...state.workouts];
+                alert('Workout started!');
+                render();
+            } catch (error) {
+                console.error('Error starting workout:', error);
+                alert('Failed to start workout');
+            }
+        }
+
+        // Add set to workout
+        async function addSet() {
+            const exerciseId = document.getElementById('set-exercise').value;
+            const setNumber = document.getElementById('set-number').value;
+            const weight = document.getElementById('set-weight').value;
+            const reps = document.getElementById('set-reps').value;
+            
+            if (!exerciseId || !weight || !reps) {
+                alert('Please fill in all fields');
+                return;
+            }
+            
+            try {
+                await fetch(`${API_URL}/${state.currentUser.databaseName}/workouts/${state.activeWorkout.id}/sets`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        exercise_id: parseInt(exerciseId),
+                        set_number: parseInt(setNumber),
+                        weight: parseFloat(weight),
+                        reps: parseInt(reps)
+                    })
+                });
+                
+                alert('Set added!');
+                document.getElementById('set-number').value = parseInt(setNumber) + 1;
+            } catch (error) {
+                console.error('Error adding set:', error);
+                alert('Failed to add set');
+            }
+        }
+
+        // Complete workout
+        async function completeWorkout() {
+            try {
+                await fetch(`${API_URL}/${state.currentUser.databaseName}/workouts/${state.activeWorkout.id}/complete`, {
+                    method: 'PATCH'
+                });
+                
+                alert('Workout completed!');
+                state.activeWorkout = null;
+                await loadUserData();
+            } catch (error) {
+                console.error('Error completing workout:', error);
+                alert('Failed to complete workout');
+            }
+        }
+
+        // Logout
+        function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                localStorage.removeItem('fittrack_user');
+                state.currentUser = null;
+                state.activeTab = 'dashboard';
+                render();
+            }
+        }
+
+        // Render function
+        function render() {
+            const app = document.getElementById('app');
+            
+            if (!state.currentUser) {
+                app.innerHTML = renderRegistrationScreen();
+            } else {
+                app.innerHTML = renderMainApp();
+            }
+        }
+
+        // Registration screen
+        function renderRegistrationScreen() {
+            return `
+                <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
+                        <div class="text-center mb-8">
+                            <div class="flex justify-center mb-4">
+                                <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 rounded-full">
+                                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <h1 class="text-3xl font-bold text-gray-900 mb-2">FitTrack Pro</h1>
+                            <p class="text-gray-600">Your Personal Fitness Companion</p>
+                        </div>
+                        
+                        <form onsubmit="handleRegistration(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                                <input type="text" name="firstName" required 
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    placeholder="John" />
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                                <input type="text" name="lastName" required 
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    placeholder="Smith" />
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                <input type="email" name="email" required 
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    placeholder="john@example.com" />
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                                <input type="password" name="password" required 
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    placeholder="••••••••" />
+                            </div>
+                            
+                            <button type="submit" 
+                                class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all">
+                                Create Account
+                            </button>
+                        </form>
+                        
+                        <div class="mt-6 text-center text-sm text-gray-600">
+                            <p>Your personal database will be created automatically</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Main app
+        function renderMainApp() {
+            return `
+                <div class="min-h-screen bg-gray-50">
+                    <!-- Header -->
+                    <div class="bg-white shadow-sm border-b sticky top-0 z-10">
+                        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div class="flex justify-between items-center py-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-2 rounded-lg">
+                                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h1 class="text-xl font-bold text-gray-900">FitTrack Pro</h1>
+                                        <p class="text-xs text-gray-600">${state.currentUser.firstName} ${state.currentUser.lastName}</p>
+                                    </div>
+                                </div>
+                                <button onclick="logout()" class="text-sm text-gray-600 hover:text-gray-900">
+                                    Logout
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Navigation -->
+                    <div class="bg-white border-b">
+                        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <nav class="flex space-x-8">
+                                <button onclick="state.activeTab='dashboard'; render();" 
+                                    class="px-3 py-4 text-sm font-medium border-b-2 ${state.activeTab === 'dashboard' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}">
+                                    Dashboard
+                                </button>
+                                <button onclick="state.activeTab='workouts'; render();" 
+                                    class="px-3 py-4 text-sm font-medium border-b-2 ${state.activeTab === 'workouts' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}">
+                                    Workouts
+                                </button>
+                                <button onclick="state.activeTab='nutrition'; render();" 
+                                    class="px-3 py-4 text-sm font-medium border-b-2 ${state.activeTab === 'nutrition' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}">
+                                    Nutrition
+                                </button>
+                            </nav>
+                        </div>
+                    </div>
+
+                    <!-- Main Content -->
+                    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        ${renderActiveTab()}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Render active tab
+        function renderActiveTab() {
+            switch (state.activeTab) {
+                case 'dashboard':
+                    return renderDashboard();
+                case 'workouts':
+                    return renderWorkouts();
+                case 'nutrition':
+                    return renderNutrition();
+                default:
+                    return renderDashboard();
+            }
+        }
+
+        // Dashboard
+        function renderDashboard() {
+            return `
+                <div class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-white rounded-xl shadow-sm p-6">
+                            <h3 class="text-sm text-gray-600 mb-1">Total Workouts</h3>
+                            <p class="text-3xl font-bold text-blue-600">${state.workouts.length}</p>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-sm p-6">
+                            <h3 class="text-sm text-gray-600 mb-1">Current Weight</h3>
+                            <p class="text-3xl font-bold text-green-600">
+                                ${state.latestMeasurement ? `${state.latestMeasurement.weight} ${state.latestMeasurement.weight_unit}` : 'N/A'}
+                            </p>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-sm p-6">
+                            <h3 class="text-sm text-gray-600 mb-1">Exercises</h3>
+                            <p class="text-3xl font-bold text-purple-600">${state.exercises.length}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h3 class="text-lg font-semibold mb-4">Recent Activity</h3>
+                        ${state.workouts.length === 0 ? 
+                            '<p class="text-gray-500 text-center py-8">No workouts yet. Start your first workout!</p>' :
+                            state.workouts.slice(0, 5).map(w => `
+                                <div class="p-3 bg-gray-50 rounded-lg mb-2">
+                                    <p class="font-medium">${w.workout_name || 'Workout'}</p>
+                                    <p class="text-sm text-gray-600">${new Date(w.workout_date).toLocaleDateString()}</p>
+                                </div>
+                            `).join('')
+                        }
+                    </div>
+                </div>
+            `;
+        }
+
+        // Workouts tab
+        function renderWorkouts() {
+            if (!state.activeWorkout) {
+                return `
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h3 class="text-lg font-semibold mb-4">Start New Workout</h3>
+                        <div class="space-y-4">
+                            <input type="text" id="workout-name" placeholder="Workout Name (optional)" 
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                            <textarea id="workout-notes" placeholder="Notes (optional)" rows="3"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea>
+                            <button onclick="startWorkout()" 
+                                class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700">
+                                Start Workout
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h3 class="text-lg font-semibold">${state.activeWorkout.workout_name}</h3>
+                            <p class="text-sm text-gray-600">Workout in Progress</p>
+                        </div>
+                        <button onclick="completeWorkout()" 
+                            class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700">
+                            Finish Workout
+                        </button>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <select id="set-exercise" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                            <option value="">Select Exercise</option>
+                            ${state.exercises.map(ex => `
+                                <option value="${ex.id}">${ex.exercise_name} (${ex.muscle_group})</option>
+                            `).join('')}
+                        </select>
+                        
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Set #</label>
+                                <input type="number" id="set-number" value="1" 
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Weight (lbs)</label>
+                                <input type="number" id="set-weight" step="2.5" 
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Reps</label>
+                                <input type="number" id="set-reps" 
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                            </div>
+                        </div>
+                        
+                        <button onclick="addSet()" 
+                            class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700">
+                            Add Set
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Nutrition tab
+        function renderNutrition() {
+            return `
+                <div class="bg-white rounded-xl shadow-sm p-6">
+                    <h3 class="text-lg font-semibold mb-4">Nutrition Tracking</h3>
+                    <p class="text-gray-600">
+                        Nutrition tracking interface coming soon. Will integrate with food database at 192.168.1.74.
+                    </p>
+                </div>
+            `;
+        }
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>
