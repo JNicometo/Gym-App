@@ -1,6 +1,15 @@
 # FitTrack Pro - MVP Version
 
-A comprehensive fitness tracking application with individual user databases, workout logging, nutrition tracking, body measurements, and cardio activities. Built for web and mobile (iOS/Android) deployment.
+A comprehensive fitness tracking application with individual user databases, workout logging, nutrition tracking, body measurements, and cardio activities. Built for local development and cloud deployment.
+
+## 📚 Documentation
+
+- **[LOCAL_SETUP.md](LOCAL_SETUP.md)** - Complete local development setup guide
+- **[CLOUD_MIGRATION.md](CLOUD_MIGRATION.md)** - Deploy to Azure, AWS, or other cloud platforms
+- **[QUICKSTART.md](QUICKSTART.md)** - 5-minute quick start guide
+- **[PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)** - Architecture and design decisions
+- **[FILE_INVENTORY.md](FILE_INVENTORY.md)** - Detailed file descriptions
+- **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)** - Pre-deployment checklist
 
 ## 🎯 Features
 
@@ -65,38 +74,58 @@ Each user gets their own database: `firstinitial_lastname_XXXXX`
 - **Views included** - Pre-built views for common queries
 - **Foreign keys** - Proper relationships with cascade delete
 
-## 🚀 Setup Instructions
+## 🚀 Quick Start
+
+### Two Deployment Options
+
+**Option 1: Local Development (Recommended to start)**
+- Runs entirely on your computer
+- Free SQL Server Express
+- Perfect for testing and development
+- ⭐ **[See LOCAL_SETUP.md for complete guide](LOCAL_SETUP.md)**
+
+**Option 2: Cloud Production**
+- Deploy to Azure, AWS, or other cloud platforms
+- Accessible from anywhere
+- Professional hosting with backups
+- 📚 **[See CLOUD_MIGRATION.md when ready](CLOUD_MIGRATION.md)**
+
+---
+
+## 🏠 Local Setup (Quick Version)
 
 ### Prerequisites
 
-1. **SQL Server** running at `192.168.1.74:1433`
-   - SQL Server Authentication enabled
-   - TCP/IP protocol enabled
-   - Permissions to create databases
-   
-2. **Node.js** 16+ and npm installed
+1. **Node.js** 16+ ([Download](https://nodejs.org/))
+2. **SQL Server** (one of):
+   - SQL Server Express (Free) - Recommended
+   - SQL Server Developer (Free)
+   - SQL Server LocalDB (Free, Windows only)
+3. **SQL Server Management Studio** (Optional but helpful)
 
-3. **Git** (optional, for version control)
-
-### Step 1: Download/Clone Files
+### Quick Install
 
 ```bash
-# Create project directory
-mkdir fittrack-pro
-cd fittrack-pro
+# 1. Clone repository
+git clone <repo-url>
+cd Gym-App
 
-# Create subdirectories
-mkdir api frontend database
-
-# Copy all files to appropriate directories
-```
-
-### Step 2: Install API Dependencies
-
-```bash
+# 2. Install dependencies
 cd api
 npm install
+
+# 3. Configure database
+cp .env.example .env
+# Edit .env with your SQL Server connection
+
+# 4. Start API
+npm start
+
+# 5. Open frontend
+# Just open frontend/index.html in your browser!
 ```
+
+That's it! For detailed setup instructions, troubleshooting, and SQL Server installation guide, see **[LOCAL_SETUP.md](LOCAL_SETUP.md)**.
 
 This installs:
 - `express` - Web server framework

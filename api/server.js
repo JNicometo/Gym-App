@@ -1,6 +1,9 @@
 // FitTrack Pro - Node.js/Express API Server
 // Handles user registration, database provisioning, and all CRUD operations
 
+// Load environment variables from .env file if it exists
+require('dotenv').config();
+
 const express = require('express');
 const sql = require('mssql');
 const cors = require('cors');
@@ -16,11 +19,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // SQL Server Configuration
+// Supports both local development and cloud deployment
 const config = {
-    server: '192.168.1.74',
-    port: 1433,
+    server: process.env.DB_SERVER || 'localhost',
+    port: parseInt(process.env.DB_PORT || '1433'),
     options: {
-        encrypt: false,
+        encrypt: process.env.DB_ENCRYPT === 'true', // false for local, true for Azure/cloud
         trustServerCertificate: true,
         enableArithAbort: true
     },
@@ -28,15 +32,26 @@ const config = {
         max: 10,
         min: 0,
         idleTimeoutMillis: 30000
-    },
-    // Add authentication here if needed
-    // user: 'your_username',
-    // password: 'your_password',
-    // Or use Windows Authentication if on Windows
-    authentication: {
-        type: 'default'
     }
 };
+
+// Authentication - choose one method:
+// 1. Windows Authentication (recommended for local Windows development)
+// 2. SQL Server Authentication (use for cloud or non-Windows)
+if (process.env.DB_USER && process.env.DB_PASSWORD) {
+    // SQL Server Authentication
+    config.user = process.env.DB_USER;
+    config.password = process.env.DB_PASSWORD;
+    console.log('Using SQL Server Authentication');
+} else {
+    // Windows Authentication (default for local development on Windows)
+    config.authentication = {
+        type: 'default'
+    };
+    console.log('Using Windows Authentication');
+}
+
+console.log(`Connecting to SQL Server at: ${config.server}:${config.port}`);
 
 // ==========================================
 // UTILITY FUNCTIONS
